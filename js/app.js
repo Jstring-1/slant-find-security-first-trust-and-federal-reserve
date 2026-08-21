@@ -6646,11 +6646,13 @@
     { id:'min7', name:'min 7',      semis:[0,3,7,10] },
     { id:'m7b5', name:'m7♭5',       semis:[0,3,6,10] }
   ];
+  const _EAR_NOTE_NAMES = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
   const _EAR_LS = 'sf_ear_prefs';
   function _earLoadPrefs() {
     const dflt = {
       mode: 'intervals',
       play: 'melodic_up',
+      root: 'random',   // 'random' or one of _EAR_NOTE_NAMES
       intervals: [0,1,1,1,1,1,1,1,1,1,1,1],   // skip unison by default
       chords: { Maj:1, min:1, dim:1, aug:1, dom7:1, Maj7:1, min7:1, m7b5:1 },
       score: { right: 0, wrong: 0 }
@@ -6677,10 +6679,20 @@
   let _earRevealed = false;
   let _earLastGuess = null; // interval # or chord id — for red highlight on wrong
 
+  // Resolve the current root selection to a MIDI number. 'random' picks
+  // fresh across a comfortable C3..C5 span; a pinned note sits in the
+  // C4 octave (MIDI 60 + pitch class) so it stays in a singable range.
+  function _earPickRootMidi() {
+    const r = _earPrefs && _earPrefs.root;
+    if (!r || r === 'random') return 48 + Math.floor(Math.random() * 25);
+    const pc = notePc(r);
+    return 60 + pc;
+  }
+
   function _earPickChallenge() {
     _earRevealed = false;
     _earLastGuess = null;
-    const root = 48 + Math.floor(Math.random() * 25);   // C3..C5
+    const root = _earPickRootMidi();
     if (_earPrefs.mode === 'intervals') {
       const enabled = [];
       for (let i = 0; i < 12; i++) if (_earPrefs.intervals[i]) enabled.push(i);
@@ -6701,8 +6713,11 @@
     return fam ? fam.semis.map(function (s) { return _earCurrent.root + s; }) : [];
   }
 
-  function _earPlay() {
-    if (!_earCurrent) return;
+  // Play any list of MIDI notes using the currently-selected playback
+  // mode. Shared by the challenge play and the reference-interval /
+  // reference-chord buttons.
+  function _earPlayNotes(notes) {
+    if (!notes || !notes.length) return;
     // Ear training is inherently audio-driven — the site-wide ♪ pill is
     // opt-in to keep the page silent on first load, but by the time the
     // user clicks a challenge here they've explicitly consented. Flip
@@ -6716,7 +6731,6 @@
     // Warm the Tone voice on the very first click so subsequent notes
     // route through the sampler instead of the triangle fallback.
     if (typeof ensureToneInstrument === 'function') ensureToneInstrument();
-    const notes = _earNotes();
     const play = _earPrefs.play;
     const step = 550;   // ms between melodic notes
     if (play === 'harmonic') {
@@ -6737,6 +6751,25 @@
         setTimeout(function () { playMidi(n, 0.7); }, i * step);
       });
     }
+  }
+
+  function _earPlay() {
+    if (!_earCurrent) return;
+    _earPlayNotes(_earNotes());
+  }
+
+  // Reference: play any interval on demand (no scoring, no reveal
+  // state change). Uses the current root selection — pinned or fresh
+  // random each click.
+  function _earPlayReferenceInterval(semis) {
+    const root = _earPickRootMidi();
+    _earPlayNotes([root, root + semis]);
+  }
+  function _earPlayReferenceChord(familyId) {
+    const root = _earPickRootMidi();
+    const fam = _EAR_CHORDS.find(function (f) { return f.id === familyId; });
+    if (!fam) return;
+    _earPlayNotes(fam.semis.map(function (s) { return root + s; }));
   }
 
   function _earHandleGuess(choice) {
@@ -6774,6 +6807,17 @@
     PLAY.forEach(function (o) {
       h += '<button type="button" class="ear_play_btn' + (_earPrefs.play === o.id ? ' ear_play_on' : '')
          + '" data-ear-play="' + o.id + '">' + o.lbl + '</button>';
+    });
+    h += '</div>';
+
+    // Root note row — 'Random' or pinned to a specific pitch class
+    const curRoot = _earPrefs.root || 'random';
+    h += '<div class="ear_root_row"><span class="ear_lbl">Root</span>'
+       + '<button type="button" class="ear_root_btn' + (curRoot === 'random' ? ' ear_root_on' : '')
+       + '" data-ear-root="random">Random</button>';
+    _EAR_NOTE_NAMES.forEach(function (n) {
+      h += '<button type="button" class="ear_root_btn' + (curRoot === n ? ' ear_root_on' : '')
+         + '" data-ear-root="' + escHtml(n) + '">' + escHtml(n) + '</button>';
     });
     h += '</div>';
 
@@ -6858,6 +6902,26 @@
     }
     h += '</div>';
 
+    // Reference row — tap any interval / chord to hear it on the current
+    // root. No scoring, no reveal change. Always visible so it doubles
+    // as a lookup even mid-quiz.
+    const refLabel = mode === 'intervals' ? 'Play any interval' : 'Play any chord';
+    h += '<div class="ear_ref_head"><span class="ear_lbl">Reference</span>'
+       + '<span class="ear_ref_hint">' + refLabel + ' &mdash; uses current Root + Playback</span></div>';
+    h += '<div class="ear_ref_grid">';
+    if (mode === 'intervals') {
+      for (let i = 0; i < 12; i++) {
+        h += '<button type="button" class="ear_ref_btn" data-ear-ref-int="' + i + '"'
+           + ' title="' + _EAR_INT_LONG[i] + '">' + _EAR_INT_SHORT[i] + '</button>';
+      }
+    } else {
+      _EAR_CHORDS.forEach(function (f) {
+        h += '<button type="button" class="ear_ref_btn" data-ear-ref-fam="' + f.id + '"'
+           + ' title="' + f.name + '">' + f.name + '</button>';
+      });
+    }
+    h += '</div>';
+
     root.innerHTML = h;
   }
 
@@ -6880,6 +6944,21 @@
       if (playBtn) {
         _earPrefs.play = playBtn.getAttribute('data-ear-play');
         _earSavePrefs(_earPrefs); renderEar(); return;
+      }
+      const rootBtn = closest('.ear_root_btn');
+      if (rootBtn) {
+        _earPrefs.root = rootBtn.getAttribute('data-ear-root');
+        _earSavePrefs(_earPrefs); renderEar(); return;
+      }
+      const refInt = closest('[data-ear-ref-int]');
+      if (refInt) {
+        _earPlayReferenceInterval(parseInt(refInt.getAttribute('data-ear-ref-int'), 10));
+        return;
+      }
+      const refFam = closest('[data-ear-ref-fam]');
+      if (refFam) {
+        _earPlayReferenceChord(refFam.getAttribute('data-ear-ref-fam'));
+        return;
       }
       const resetLink = closest('.ear_reset_score');
       if (resetLink) {

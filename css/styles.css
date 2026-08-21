@@ -2609,8 +2609,10 @@ body[data-features~="sheetmusic"] .feature_sheetmusic
                                               font: 400 0.9em var(--font);                                             }
 .ear_mode_row,
 .ear_play_row,
+.ear_root_row,
 .ear_pool_row,
-.ear_transport_row                          { display: flex; flex-wrap: wrap; align-items: center;
+.ear_transport_row,
+.ear_ref_head                               { display: flex; flex-wrap: wrap; align-items: center;
                                               gap: 6px; margin: 8px 0;                                                 }
 .ear_lbl                                    { color: rgba(255,255,255,0.55); font-size: 0.85em;
                                               text-transform: uppercase; letter-spacing: 0.08em;
@@ -2668,6 +2670,23 @@ body[data-features~="sheetmusic"] .feature_sheetmusic
 .ear_guess_right .ear_guess_long            { color: var(--accent-hi); opacity: 0.85;                                  }
 .ear_guess_wrong                            { background: rgba(255,120,120,0.20); color: #ff9a9a;
                                               border-color: #ff9a9a;                                                   }
+.ear_root_btn                               { background: #1a1a1a; color: var(--text);
+                                              border: 1px solid #2a2a2a; border-radius: 3px;
+                                              padding: 4px 9px; font: 400 0.85em var(--font);
+                                              cursor: pointer; min-width: 34px; text-align: center;                    }
+.ear_root_btn:hover                         { background: #232323; border-color: #555;                                 }
+.ear_root_on                                { background: rgba(95,232,224,0.18); color: var(--accent-hi);
+                                              border-color: var(--accent-hi); font-weight: 700;                        }
+.ear_ref_head                               { margin-top: 14px; margin-bottom: 4px;                                    }
+.ear_ref_hint                               { color: rgba(255,255,255,0.55); font-size: 0.8em;                         }
+.ear_ref_grid                               { display: grid; gap: 4px;
+                                              grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));             }
+.ear_ref_btn                                { background: #141414; color: rgba(255,255,255,0.75);
+                                              border: 1px dashed #333; border-radius: 3px;
+                                              padding: 6px 6px; font: 400 0.85em var(--font);
+                                              cursor: pointer; text-align: center;                                     }
+.ear_ref_btn:hover                          { background: #1e1e1e; color: var(--accent-hi);
+                                              border-color: var(--accent-hi); border-style: solid;                     }
 @media print {
   #section_12                               { display: none !important;                                                }
 }
