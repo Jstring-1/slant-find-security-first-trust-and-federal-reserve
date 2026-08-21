@@ -2603,3 +2603,71 @@ body[data-features~="sheetmusic"] .feature_sheetmusic
 @media print {
   #auth_widget                              { display: none !important;                                                }
 }
+
+/* ---------- Ear Training (section_12) ---------- */
+#ear_root                                   { display: block; padding: 6px 4px 14px; color: var(--text);
+                                              font: 400 0.9em var(--font);                                             }
+.ear_mode_row,
+.ear_play_row,
+.ear_pool_row,
+.ear_transport_row                          { display: flex; flex-wrap: wrap; align-items: center;
+                                              gap: 6px; margin: 8px 0;                                                 }
+.ear_lbl                                    { color: rgba(255,255,255,0.55); font-size: 0.85em;
+                                              text-transform: uppercase; letter-spacing: 0.08em;
+                                              margin-right: 4px;                                                       }
+.ear_mode_btn,
+.ear_play_btn,
+.ear_go_btn                                 { background: #1a1a1a; color: var(--text);
+                                              border: 1px solid #333; border-radius: 4px;
+                                              padding: 6px 12px; font: 400 0.9em var(--font);
+                                              cursor: pointer; line-height: 1.1;                                       }
+.ear_mode_btn:hover,
+.ear_play_btn:hover,
+.ear_go_btn:hover                           { background: #232323; border-color: #555;                                 }
+.ear_mode_on,
+.ear_play_on                                { background: rgba(95,232,224,0.18); color: var(--accent-hi);
+                                              border-color: var(--accent-hi);                                          }
+.ear_mode_btn                               { font-weight: 700; padding: 6px 16px;                                     }
+.ear_go_new                                 { background: rgba(95,232,224,0.22); color: var(--accent-hi);
+                                              border-color: var(--accent-hi); font-weight: 700;                        }
+.ear_pool_lbl                               { display: inline-flex; align-items: center; gap: 4px;
+                                              background: #1a1a1a; border: 1px solid #2a2a2a;
+                                              border-radius: 3px; padding: 3px 8px 3px 6px;
+                                              font-size: 0.85em; color: var(--text); cursor: pointer;                  }
+.ear_pool_lbl:hover                         { border-color: #444;                                                      }
+.ear_pool_cb                                { margin: 0; cursor: pointer; accent-color: var(--accent-hi);              }
+.ear_score                                  { margin-left: auto; color: rgba(255,255,255,0.75);
+                                              font-size: 0.9em;                                                        }
+.ear_score strong                           { color: var(--text); font-weight: 700;                                    }
+.ear_reset_score                            { color: var(--accent-hi); text-decoration: none; font-size: 0.85em;       }
+.ear_reset_score:hover                      { text-decoration: underline;                                              }
+.ear_reveal                                 { margin: 10px 0 6px; padding: 8px 12px; border-radius: 4px;
+                                              background: #141414; border: 1px solid #262626;
+                                              font-size: 0.95em; min-height: 20px;                                     }
+.ear_reveal strong                          { color: var(--accent-hi);                                                 }
+.ear_reveal_right                           { border-color: rgba(95,232,224,0.6);
+                                              background: rgba(95,232,224,0.06);                                       }
+.ear_reveal_wrong                           { border-color: rgba(255,120,120,0.6);
+                                              background: rgba(255,120,120,0.08);                                      }
+.ear_reveal_wrong strong                    { color: #ff9a9a;                                                          }
+.ear_reveal_empty                           { color: rgba(255,255,255,0.55);                                           }
+.ear_reveal_prompt                          { color: rgba(255,255,255,0.75); font-style: italic;                       }
+.ear_guess_grid                             { display: grid; gap: 6px; margin-top: 6px;
+                                              grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));            }
+.ear_guess_btn                              { display: flex; flex-direction: column; align-items: center;
+                                              justify-content: center; gap: 2px;
+                                              background: #1a1a1a; color: var(--text);
+                                              border: 1px solid #333; border-radius: 4px;
+                                              padding: 10px 8px; font: 400 0.9em var(--font);
+                                              cursor: pointer; text-align: center; line-height: 1.15;                  }
+.ear_guess_btn:hover                        { background: #232323; border-color: #666;                                 }
+.ear_guess_short                            { font-weight: 700; font-size: 1.05em;                                     }
+.ear_guess_long                             { font-size: 0.75em; color: rgba(255,255,255,0.55);                        }
+.ear_guess_right                            { background: rgba(95,232,224,0.25); color: var(--accent-hi);
+                                              border-color: var(--accent-hi); font-weight: 700;                        }
+.ear_guess_right .ear_guess_long            { color: var(--accent-hi); opacity: 0.85;                                  }
+.ear_guess_wrong                            { background: rgba(255,120,120,0.20); color: #ff9a9a;
+                                              border-color: #ff9a9a;                                                   }
+@media print {
+  #section_12                               { display: none !important;                                                }
+}

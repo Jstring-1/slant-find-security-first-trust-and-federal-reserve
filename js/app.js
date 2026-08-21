@@ -4368,6 +4368,34 @@
       ''
     ].join('\n'),
 
+    ear_training: [
+      '',
+      '  Ear Training',
+      '  ============',
+      '',
+      '  Random interval- and chord-identification drills. The site plays a',
+      '  root note and one or more follow-up notes; you guess what you heard.',
+      '',
+      '  Modes:',
+      '    • INTERVALS — root + one other note. Pick any subset of the 12',
+      '      chromatic intervals to drill (m2, M2, m3, M3, P4, TT, P5, m6,',
+      '      M6, m7, M7). Buttons show the short name; hover for the long',
+      '      name.',
+      '    • CHORDS — root + the rest of a triad or 7th chord. Pool covers',
+      '      Major, minor, diminished, augmented, dom7, Maj7, min7, m7♭5.',
+      '',
+      '  Playback:',
+      '    • ↑ Melodic — notes one after another, low → high',
+      '    • ↓ Melodic — notes one after another, high → low',
+      '    • ⧉ Harmonic — every note struck at once',
+      '    • ↑ then ⧉ — melodic first, then harmonic',
+      '',
+      '  Uses whatever instrument voice you have selected elsewhere in the',
+      '  site. Score (correct / wrong) persists in localStorage and can be',
+      '  reset from the score row. Pool + playback preferences persist too.',
+      ''
+    ].join('\n'),
+
     learn: [
       '',
       '  Quiz',
@@ -6597,6 +6625,289 @@
     };
   }
 
+  // ------------------------------------------------------------------
+  // Ear Training (section_12)
+  // ------------------------------------------------------------------
+  // Random interval / chord identification drills. Uses playMidi() so
+  // playback honours the user's selected instrument. Pool + mode + score
+  // persist to localStorage only — not the URL — since these are personal
+  // practice prefs, not shareable state.
+  const _EAR_INT_SHORT = ['P1','m2','M2','m3','M3','P4','TT','P5','m6','M6','m7','M7'];
+  const _EAR_INT_LONG  = ['Unison','Minor 2nd','Major 2nd','Minor 3rd','Major 3rd',
+                          'Perfect 4th','Tritone','Perfect 5th','Minor 6th',
+                          'Major 6th','Minor 7th','Major 7th'];
+  const _EAR_CHORDS = [
+    { id:'Maj',  name:'Major',      semis:[0,4,7]    },
+    { id:'min',  name:'Minor',      semis:[0,3,7]    },
+    { id:'dim',  name:'Diminished', semis:[0,3,6]    },
+    { id:'aug',  name:'Augmented',  semis:[0,4,8]    },
+    { id:'dom7', name:'Dom 7',      semis:[0,4,7,10] },
+    { id:'Maj7', name:'Maj 7',      semis:[0,4,7,11] },
+    { id:'min7', name:'min 7',      semis:[0,3,7,10] },
+    { id:'m7b5', name:'m7♭5',       semis:[0,3,6,10] }
+  ];
+  const _EAR_LS = 'sf_ear_prefs';
+  function _earLoadPrefs() {
+    const dflt = {
+      mode: 'intervals',
+      play: 'melodic_up',
+      intervals: [0,1,1,1,1,1,1,1,1,1,1,1],   // skip unison by default
+      chords: { Maj:1, min:1, dim:1, aug:1, dom7:1, Maj7:1, min7:1, m7b5:1 },
+      score: { right: 0, wrong: 0 }
+    };
+    try {
+      const raw = window.localStorage.getItem(_EAR_LS);
+      if (!raw) return dflt;
+      const parsed = JSON.parse(raw);
+      // shallow merge, keep defaults for missing keys
+      const out = Object.assign({}, dflt, parsed);
+      out.intervals = (parsed.intervals && parsed.intervals.length === 12)
+                       ? parsed.intervals.slice() : dflt.intervals.slice();
+      out.chords = Object.assign({}, dflt.chords, parsed.chords || {});
+      out.score = Object.assign({}, dflt.score, parsed.score || {});
+      return out;
+    } catch (_) { return dflt; }
+  }
+  function _earSavePrefs(p) {
+    try { window.localStorage.setItem(_EAR_LS, JSON.stringify(p)); } catch (_) {}
+  }
+
+  let _earPrefs = null;
+  let _earCurrent = null;   // { kind, root, interval | familyId }
+  let _earRevealed = false;
+  let _earLastGuess = null; // interval # or chord id — for red highlight on wrong
+
+  function _earPickChallenge() {
+    _earRevealed = false;
+    _earLastGuess = null;
+    const root = 48 + Math.floor(Math.random() * 25);   // C3..C5
+    if (_earPrefs.mode === 'intervals') {
+      const enabled = [];
+      for (let i = 0; i < 12; i++) if (_earPrefs.intervals[i]) enabled.push(i);
+      if (!enabled.length) enabled.push(7);
+      const interval = enabled[Math.floor(Math.random() * enabled.length)];
+      _earCurrent = { kind: 'interval', root: root, interval: interval };
+    } else {
+      const pool = _EAR_CHORDS.filter(function (f) { return _earPrefs.chords[f.id]; });
+      const fam = (pool.length ? pool : [_EAR_CHORDS[0]])[Math.floor(Math.random() * (pool.length || 1))];
+      _earCurrent = { kind: 'chord', root: root, familyId: fam.id };
+    }
+  }
+
+  function _earNotes() {
+    if (!_earCurrent) return [];
+    if (_earCurrent.kind === 'interval') return [_earCurrent.root, _earCurrent.root + _earCurrent.interval];
+    const fam = _EAR_CHORDS.find(function (f) { return f.id === _earCurrent.familyId; });
+    return fam ? fam.semis.map(function (s) { return _earCurrent.root + s; }) : [];
+  }
+
+  function _earPlay() {
+    if (!_earCurrent) return;
+    // Warm the Tone voice on the very first click so subsequent notes
+    // route through the sampler instead of the triangle fallback.
+    if (typeof ensureToneInstrument === 'function') ensureToneInstrument();
+    const notes = _earNotes();
+    const play = _earPrefs.play;
+    const step = 550;   // ms between melodic notes
+    if (play === 'harmonic') {
+      notes.forEach(function (n) { playMidi(n, 1.8); });
+    } else if (play === 'melodic_down') {
+      notes.slice().reverse().forEach(function (n, i) {
+        setTimeout(function () { playMidi(n, 0.7); }, i * step);
+      });
+    } else if (play === 'both') {
+      notes.forEach(function (n, i) {
+        setTimeout(function () { playMidi(n, 0.7); }, i * step);
+      });
+      setTimeout(function () {
+        notes.forEach(function (n) { playMidi(n, 1.8); });
+      }, notes.length * step + 250);
+    } else {   // melodic_up (default)
+      notes.forEach(function (n, i) {
+        setTimeout(function () { playMidi(n, 0.7); }, i * step);
+      });
+    }
+  }
+
+  function _earHandleGuess(choice) {
+    if (!_earCurrent || _earRevealed) return;
+    _earLastGuess = choice;
+    let correct;
+    if (_earCurrent.kind === 'interval') correct = (choice === _earCurrent.interval);
+    else correct = (choice === _earCurrent.familyId);
+    _earPrefs.score[correct ? 'right' : 'wrong']++;
+    _earRevealed = true;
+    _earSavePrefs(_earPrefs);
+    renderEar();
+  }
+
+  function renderEar() {
+    const root = document.getElementById('ear_root');
+    if (!root) return;
+    if (!_earPrefs) _earPrefs = _earLoadPrefs();
+
+    const mode = _earPrefs.mode;
+    // Mode row
+    let h = '<div class="ear_mode_row">'
+          + '<button type="button" class="ear_mode_btn' + (mode === 'intervals' ? ' ear_mode_on' : '') + '" data-ear-mode="intervals">Intervals</button>'
+          + '<button type="button" class="ear_mode_btn' + (mode === 'chords'    ? ' ear_mode_on' : '') + '" data-ear-mode="chords">Chords</button>'
+          + '</div>';
+
+    // Play mode row
+    const PLAY = [
+      { id: 'melodic_up',   lbl: '↑ Melodic'  },
+      { id: 'melodic_down', lbl: '↓ Melodic'  },
+      { id: 'harmonic',     lbl: '⧉ Together' },
+      { id: 'both',         lbl: '↑ then ⧉'   }
+    ];
+    h += '<div class="ear_play_row"><span class="ear_lbl">Playback</span>';
+    PLAY.forEach(function (o) {
+      h += '<button type="button" class="ear_play_btn' + (_earPrefs.play === o.id ? ' ear_play_on' : '')
+         + '" data-ear-play="' + o.id + '">' + o.lbl + '</button>';
+    });
+    h += '</div>';
+
+    // Pool row
+    h += '<div class="ear_pool_row"><span class="ear_lbl">Pool</span>';
+    if (mode === 'intervals') {
+      for (let i = 0; i < 12; i++) {
+        h += '<label class="ear_pool_lbl" title="' + _EAR_INT_LONG[i] + '">'
+           + '<input type="checkbox" class="ear_pool_cb" data-ear-int="' + i + '"'
+           + (_earPrefs.intervals[i] ? ' checked' : '') + '> '
+           + _EAR_INT_SHORT[i] + '</label>';
+      }
+    } else {
+      _EAR_CHORDS.forEach(function (f) {
+        h += '<label class="ear_pool_lbl">'
+           + '<input type="checkbox" class="ear_pool_cb" data-ear-fam="' + f.id + '"'
+           + (_earPrefs.chords[f.id] ? ' checked' : '') + '> '
+           + f.name + '</label>';
+      });
+    }
+    h += '</div>';
+
+    // Transport + score row
+    h += '<div class="ear_transport_row">'
+       + '<button type="button" class="ear_go_btn ear_go_new" id="ear_new">▶ New challenge</button>'
+       + '<button type="button" class="ear_go_btn" id="ear_replay">↻ Replay</button>'
+       + '<button type="button" class="ear_go_btn" id="ear_reveal">👁 Reveal</button>'
+       + '<span class="ear_score">'
+       +   'Correct: <strong>' + _earPrefs.score.right + '</strong>'
+       +   ' &nbsp; Wrong: <strong>' + _earPrefs.score.wrong + '</strong>'
+       +   ' &nbsp; <a href="#" class="ear_reset_score">reset</a>'
+       + '</span>'
+       + '</div>';
+
+    // Reveal / prompt row
+    if (_earRevealed && _earCurrent) {
+      const label = _earCurrent.kind === 'interval'
+        ? _EAR_INT_LONG[_earCurrent.interval]
+        : ((_EAR_CHORDS.find(function (f) { return f.id === _earCurrent.familyId; }) || {}).name || '?');
+      const wrong = _earLastGuess != null && (
+        _earCurrent.kind === 'interval' ? _earLastGuess !== _earCurrent.interval
+                                        : _earLastGuess !== _earCurrent.familyId
+      );
+      h += '<div class="ear_reveal ' + (wrong ? 'ear_reveal_wrong' : 'ear_reveal_right') + '">'
+         + (wrong ? '✗ ' : '✓ ') + 'Answer: <strong>' + label + '</strong>'
+         + '</div>';
+    } else if (_earCurrent) {
+      h += '<div class="ear_reveal ear_reveal_prompt">Listening — pick your guess below.</div>';
+    } else {
+      h += '<div class="ear_reveal ear_reveal_empty">Press <strong>▶ New challenge</strong> to start.</div>';
+    }
+
+    // Guess grid
+    h += '<div class="ear_guess_grid">';
+    if (mode === 'intervals') {
+      for (let i = 0; i < 12; i++) {
+        if (!_earPrefs.intervals[i]) continue;
+        let cls = '';
+        if (_earRevealed && _earCurrent && _earCurrent.kind === 'interval') {
+          if (i === _earCurrent.interval)         cls = ' ear_guess_right';
+          else if (i === _earLastGuess)           cls = ' ear_guess_wrong';
+        }
+        h += '<button type="button" class="ear_guess_btn' + cls
+           + '" data-ear-guess-int="' + i + '">'
+           + '<span class="ear_guess_short">' + _EAR_INT_SHORT[i] + '</span>'
+           + '<span class="ear_guess_long">'  + _EAR_INT_LONG[i]  + '</span>'
+           + '</button>';
+      }
+    } else {
+      _EAR_CHORDS.forEach(function (f) {
+        if (!_earPrefs.chords[f.id]) return;
+        let cls = '';
+        if (_earRevealed && _earCurrent && _earCurrent.kind === 'chord') {
+          if (f.id === _earCurrent.familyId)  cls = ' ear_guess_right';
+          else if (f.id === _earLastGuess)    cls = ' ear_guess_wrong';
+        }
+        h += '<button type="button" class="ear_guess_btn' + cls
+           + '" data-ear-guess-fam="' + f.id + '">'
+           + '<span class="ear_guess_short">' + f.name + '</span>'
+           + '</button>';
+      });
+    }
+    h += '</div>';
+
+    root.innerHTML = h;
+  }
+
+  function bindEarTraining() {
+    const root = document.getElementById('ear_root');
+    if (!root || root._earBound) return;
+    root._earBound = true;
+
+    root.addEventListener('click', function (e) {
+      const t = e.target;
+      const closest = function (sel) { return t.closest && t.closest(sel); };
+
+      const modeBtn = closest('.ear_mode_btn');
+      if (modeBtn) {
+        _earPrefs.mode = modeBtn.getAttribute('data-ear-mode');
+        _earCurrent = null; _earRevealed = false; _earLastGuess = null;
+        _earSavePrefs(_earPrefs); renderEar(); return;
+      }
+      const playBtn = closest('.ear_play_btn');
+      if (playBtn) {
+        _earPrefs.play = playBtn.getAttribute('data-ear-play');
+        _earSavePrefs(_earPrefs); renderEar(); return;
+      }
+      const resetLink = closest('.ear_reset_score');
+      if (resetLink) {
+        e.preventDefault();
+        _earPrefs.score = { right: 0, wrong: 0 };
+        _earSavePrefs(_earPrefs); renderEar(); return;
+      }
+      if (t.id === 'ear_new') {
+        _earPickChallenge(); renderEar(); _earPlay(); return;
+      }
+      if (t.id === 'ear_replay') {
+        if (!_earCurrent) { _earPickChallenge(); renderEar(); }
+        _earPlay(); return;
+      }
+      if (t.id === 'ear_reveal') {
+        if (!_earCurrent) return;
+        _earRevealed = true; renderEar(); return;
+      }
+      const gInt = closest('[data-ear-guess-int]');
+      if (gInt) { _earHandleGuess(parseInt(gInt.getAttribute('data-ear-guess-int'), 10)); return; }
+      const gFam = closest('[data-ear-guess-fam]');
+      if (gFam) { _earHandleGuess(gFam.getAttribute('data-ear-guess-fam')); return; }
+    });
+
+    root.addEventListener('change', function (e) {
+      const t = e.target;
+      if (!t || !t.classList || !t.classList.contains('ear_pool_cb')) return;
+      if (t.hasAttribute('data-ear-int')) {
+        const i = parseInt(t.getAttribute('data-ear-int'), 10);
+        if (!isNaN(i)) _earPrefs.intervals[i] = t.checked ? 1 : 0;
+      } else if (t.hasAttribute('data-ear-fam')) {
+        _earPrefs.chords[t.getAttribute('data-ear-fam')] = t.checked ? 1 : 0;
+      }
+      _earSavePrefs(_earPrefs);
+      renderEar();
+    });
+  }
+
   function renderQuiz() {
     const root = document.getElementById('quiz_root');
     if (!root) return;
@@ -6780,6 +7091,8 @@
     bindSummaryToggleScope();
     bindFooterWitherfork();
     renderQuiz();
+    renderEar();
+    bindEarTraining();
     window.addEventListener('popstate', applyState);
   }
 
