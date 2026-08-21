@@ -6703,6 +6703,16 @@
 
   function _earPlay() {
     if (!_earCurrent) return;
+    // Ear training is inherently audio-driven — the site-wide ♪ pill is
+    // opt-in to keep the page silent on first load, but by the time the
+    // user clicks a challenge here they've explicitly consented. Flip
+    // it on if it's off, warm both audio paths, and repaint the pill so
+    // its on-state stays in sync.
+    if (typeof audioOn === 'function' && !audioOn()) {
+      setAudioOn(true);
+      ensureAudioCtx();
+      if (typeof paintAudioToggle === 'function') paintAudioToggle();
+    }
     // Warm the Tone voice on the very first click so subsequent notes
     // route through the sampler instead of the triangle fallback.
     if (typeof ensureToneInstrument === 'function') ensureToneInstrument();
